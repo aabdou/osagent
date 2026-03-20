@@ -9,4 +9,6 @@ dependencies = [
     "langchain>=1.2.12",
     "langchain-ollama>=1.0.1",
     "pygithub>=2.8.1",
+    "pydantic>=2.12.5",
+    "langchain-anthropic>=1.4.0",
 ]

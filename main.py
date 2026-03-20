@@ -10,6 +10,7 @@ def main():
     response = agent.invoke({"messages": HumanMessage("I want to contribute to fastapi/fastapi.")})
     for message in response['messages']:
         pprint(message)
+    gh_list = response.get("structured_response")
 
 if __name__ == "__main__":
     main()
