@@ -1,8 +1,18 @@
 import os
 import logging
+import csv
+from pathlib import Path
 from github import Github, Auth
 from typing import List, Any
 from datetime import datetime
+from dataclasses import dataclass
+
+OUTPUT_DIRECTORY = Path("output")
+
+@dataclass
+class Result:
+    filepath: str
+    count: int
 
 github_token = os.getenv("GITHUB_TOKEN")
 auth = Auth.Token(github_token)
@@ -23,3 +33,12 @@ def github_issues(repo: str, since: datetime) -> List[Any]:
         logging.error(e)
 
     return res
+
+def save_to_csv(gh_issues: List[Any], output_dir: Path = OUTPUT_DIRECTORY) -> Result:
+    filename = f"issues-{datetime.now().strftime("%Y%m%d_%H%M%S")}"
+    filepath = output_dir / filename
+    with open(filepath, "w") as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerows([[i.title, i.url] for i in gh_issues])
+
+    return Result(filepath, len(gh_issues))

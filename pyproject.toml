@@ -12,3 +12,8 @@ dependencies = [
     "pydantic>=2.12.5",
     "langchain-anthropic>=1.4.0",
 ]
+
+[tool.pytest.ini_options]
+  env = [
+      "GITHUB_TOKEN=dummy"
+  ]
