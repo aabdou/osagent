@@ -1,44 +1,69 @@
-import os
-import logging
 import csv
-from pathlib import Path
-from github import Github, Auth
-from typing import List, Any
-from datetime import datetime
+import os
 from dataclasses import dataclass
+from datetime import datetime
+from itertools import islice
+from pathlib import Path
+from typing import Any, Dict, List, Protocol
+
+from github import Auth, Github
+from github.GithubObject import NotSet, Opt
+from github.Issue import IssueSearchResult
+from github.PaginatedList import PaginatedList
 
 OUTPUT_DIRECTORY = Path("output")
+
 
 @dataclass
 class Result:
     filepath: str
     count: int
 
-github_token = os.getenv("GITHUB_TOKEN")
-auth = Auth.Token(github_token)
-g = Github(auth=auth)
 
-def github_issues(repo: str, since: datetime) -> List[Any]:
-    """ Fetch repo issues created since the time in the since argument """
-    res = []
-    try:
-        repo = g.get_repo(repo)
-        logging.info(f"Connected to: {repo.full_name}")
-        
-        # List the 5 most recent issues
-        for issue in repo.get_issues(state='open', since=since):
-            res.append(issue)
-            
-    except Exception as e:
-        logging.error(e)
+class GithubClient(Protocol):
+    def search_issues(
+        self,
+        query: str,
+        sort: Opt[str] = NotSet,
+        order: Opt[str] = NotSet,
+        **qualifiers: Any,
+    ) -> PaginatedList[IssueSearchResult]:
+        pass
 
-    return res
 
-def save_to_csv(gh_issues: List[Any], output_dir: Path = OUTPUT_DIRECTORY) -> Result:
-    filename = f"issues-{datetime.now().strftime("%Y%m%d_%H%M%S")}"
+def github_issues(
+    repo: str, since: datetime, github_client: GithubClient
+) -> List[Dict[str, str]]:
+    result = github_client.search_issues(
+        f"repo:{repo} is:open is:issue created:>{since}"
+    )
+
+    return [{"title": i.title, "url": i.html_url} for i in islice(result, 50)]
+
+
+def save_to_csv(
+    gh_issues: List[Dict[str, str]], output_dir: Path = OUTPUT_DIRECTORY
+) -> Result:
+    """Save a list of GitHub issues to a CSV file and return the filepath and count"""
+    filename = f"issues-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     filepath = output_dir / filename
     with open(filepath, "w") as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerows([[i.title, i.url] for i in gh_issues])
+        csv_writer.writerows([[i["title"], i["url"]] for i in gh_issues])
 
     return Result(filepath, len(gh_issues))
+
+
+def make_github_tool():
+    github_token = os.getenv("GITHUB_TOKEN")
+    auth = Auth.Token(github_token)
+    github_client = Github(auth=auth)
+
+    def github_issues_tool(repo: str, since: str) -> List[Dict[str, str]]:
+        """
+        Fetch repo issues created since the time in the since argument.
+        since must be a date string in YYYY-MM-DD format e.g. 2025-09-20
+        """
+        return github_issues(repo, since, github_client)
+
+    return github_issues_tool

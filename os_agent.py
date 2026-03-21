@@ -1,30 +1,33 @@
+from datetime import date, timedelta
+
 from langchain.agents import create_agent
-from langchain_ollama import ChatOllama
-from tools import github_issues
-from pydantic import BaseModel, Field
 from langchain_anthropic import ChatAnthropic
 
-SYSTEM_PROMPT = """
-You are a software engineering manager. Your goal is to help boost your team's contributions to open source projects. Currently you have one engineer with 20+ years of experience but new to open source. To achieve your goal, you need to find open issues that are easy to tackle. 
+from tools import make_github_tool, save_to_csv
 
-When the user provides a repository, immediately call the github search tool without asking for confirmation and return the list of issues to the user. Limit your search to issues opened in the last six month.
+_since = (date.today() - timedelta(weeks=24)).isoformat()
+
+SYSTEM_PROMPT = f"""
+You are a software engineering manager. Your goal is to help boost your team's contributions to open source projects.
+
+The issues you choose must be:
+- Opened within the last 24 weeks specifically since {_since}.
+- Limited to issues in English and if translation is required to English and Arabic
+- The issues must be simple enough for first contributions to open source
+
+The user will provide the name of the repository they want to contrinute to. 
+
+Your tasks are:
+1. Query the repository for issues that match the criteria above using the github tool. 
+2. Use the save_to_csv tool to save the issues to a CSV file, then print the file path and the issues count
 """
 
-class GithubIssue(BaseModel):
-    url: str = Field(min_length=1)
-    title: str = Field(min_length=1)
-
-class GithubIssueList(BaseModel):
-    issues: list[GithubIssue]
 
 def build_agent():
-    model = ChatAnthropic(
-        model="claude-sonnet-4-6"
-    )
+    model = ChatAnthropic(model="claude-sonnet-4-6")
 
     return create_agent(
         model=model,
         system_prompt=SYSTEM_PROMPT,
-        tools=[github_issues],
-        response_format=GithubIssueList
+        tools=[make_github_tool(), save_to_csv],
     )
